@@ -133,12 +133,17 @@ class NormalizingFlow(nn.Module):
     # In the sample function we could pass also just one single value, the fact
     # is that each time we try to evaluate in x0 we obtain a different value due
     # to z that is randomly chosen each time
-    def sample(self, x: torch.Tensor) -> torch.Tensor:
+    def sample(self, x: torch.Tensor, z: Optional[torch.Tensor] = None) -> torch.Tensor:
+        # If z is given (shape (x.shape[0], dim_y)), it is used instead of a fresh draw:
+        # row i of the output depends only on row i of x and row i of z.
         # Sample from the base distribution
         # 'x' acts as your \mu. Here, it is a vector with identical values so the self knows 
         # how many samples to produce. Subsequently, you generate a number of samples from  
         # the base distribution equal to the size of the vector 'x'.
-        z = self.base_dist.sample((x.shape[0],)) # x.shape[0] is the number of points to be evaluated
+        if z is None:
+            z = self.base_dist.sample((x.shape[0],)) # x.shape[0] is the number of points to be evaluated
+        elif z.shape != (x.shape[0], self.dim_y):
+            raise ValueError(f"z must have shape ({x.shape[0]}, {self.dim_y}), got {tuple(z.shape)}")
         # Forward transformation -> reverse=False
         with torch.no_grad():
             ldj = torch.zeros(x.shape[0], device=z.device)
