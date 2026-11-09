@@ -27,6 +27,11 @@ class PODcnfTime(PODcnf):
         """Wraps an existing PODcnf (e.g. the one returned by PODcnf.load)."""
         return cls(rom.V, rom.cnf, rom.mu_scaler, rom.c_scaler)
 
+    @staticmethod
+    def load(filepath, device=torch.device('cpu')) -> "PODcnfTime":
+        """Same as PODcnf.load (same checkpoint format), but returns a PODcnfTime."""
+        return PODcnfTime.from_podcnf(PODcnf.load(filepath, device))
+
     def sample_movie_latent(self, mu, t, n_movies: int = 1, seed: Optional[int] = None) -> torch.Tensor:
         """
         Returns the reduced coefficients c of n_movies movies, shape (n_movies, N_t, n).
