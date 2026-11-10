@@ -88,11 +88,11 @@ class NormalizingFlow(nn.Module):
         self.flows = nn.ModuleList([
             CouplingLayer(dim_x, dim_y, hidden_size, hidden_depth) for _ in range(num_flows)
         ])
-
-        self.base_dist = Normal(
-            loc=torch.zeros(dim_y, device=device),
-            scale=torch.ones(dim_y, device=device)
-        )
+        
+        # Mean and std of the base Gaussian as buffers: .to(device) moves them with the flow.
+        # persistent=False: not saved in the state_dict, so old checkpoints still load.
+        self.register_buffer('base_loc', torch.zeros(dim_y, device=device), persistent=False)
+        self.register_buffer('base_scale', torch.ones(dim_y, device=device), persistent=False)
         
         permutations = []
         for _ in range(num_flows):
@@ -101,6 +101,10 @@ class NormalizingFlow(nn.Module):
             permutations.append(p)
 
         self.register_buffer('permutations', torch.stack(permutations))
+
+    @property
+    def base_dist(self):
+        return Normal(self.base_loc, self.base_scale)
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return self.log_prob(x, y)
@@ -128,7 +132,7 @@ class NormalizingFlow(nn.Module):
                 self.log_prob(x_i.unsqueeze(0), y_i.unsqueeze(0)) for x_i, y_i in zip(x,y)
             ]
 
-        return torch.tensor(loglikelihoods)
+        return torch.cat(loglikelihoods)
 
     # In the sample function we could pass also just one single value, the fact
     # is that each time we try to evaluate in x0 we obtain a different value due
@@ -267,14 +271,14 @@ class NormalizingFlow(nn.Module):
     def tune_flow(train_data, val_data,
                   lr, num_flows, hidden_size, hidden_depth, weight_decay,
                   epochs, print_frequency, patience,
-                  dim_x, dim_y):
+                  dim_x, dim_y, device=None):
 
         """
         Input:
             - lr, num_flows, hidden_size: lists of possible value for the hyperparameters
         """
 
-        device = train_data.dataset.device
+        device = DEFAULT_DEVICE if device is None else device
 
         # Test a sufficient number of parameters
         param_grid = {

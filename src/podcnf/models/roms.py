@@ -28,6 +28,10 @@ class TorchScaler(object):
         return x*self.scale + self.vmean
     def transform(self, xtilde):
         return (xtilde-self.vmean)/self.scale
+    def to(self, device):
+        self.__vmean = self.__vmean.to(device)
+        self.__scale = self.__scale.to(device)
+        return self
 
 class GenerativeROM(object):
     def sample_latent_same_mu(self, muj, nrep):
@@ -71,7 +75,14 @@ class PODcnf(GenerativeROM):
         return self.c_scaler.inverse_transform(self.cnf.sample_same_mu(self.mu_scaler.transform(muj), nrep))
 
     def decode(self, c):
-        return c @ self.V.T   
+        return c @ self.V.T
+
+    def to(self, device):
+        self.__V = self.V.to(device)
+        self.__cnf = self.cnf.to(device)
+        self.__mu_scaler = self.mu_scaler.to(device)
+        self.__c_scaler = self.c_scaler.to(device)
+        return self  
 
     def coef_Log_Likelihood(self, mu, u):
         sigma_det = self.c_scaler.scale.log().sum()
